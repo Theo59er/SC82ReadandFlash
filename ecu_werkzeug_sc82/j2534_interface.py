@@ -1,8 +1,7 @@
 import ctypes
 
-# DLL-Pfad für Tactrix Openport 2.0
+# DLL-Pfad für Tactrix Openport 2.0 (32-bit)
 DLL_PATH = r"C:\WINDOWS\SysWOW64\op20pt32.dll"
-
 
 # Konstanten
 PROTOCOL_ID_CAN = 0x00000005
@@ -31,6 +30,70 @@ class J2534Interface:
         if result != 0:
             raise Exception(f"PassThruConnect fehlgeschlagen (Code: {result})")
         print("✅ CAN-Verbindung geöffnet:", self.channel_id)
+
+    def send_message(self, arbitration_id, data):
+        class PASSTHRU_MSG(ctypes.Structure):
+            _fields_ = [
+                ("ProtocolID", ctypes.c_ulong),
+                ("RxStatus", ctypes.c_ulong),
+                ("TxFlags", ctypes.c_ulong),
+                ("Timestamp", ctypes.c_ulong),
+                ("DataSize", ctypes.c_ulong),
+                ("ExtraDataIndex", ctypes.c_ulong),
+                ("Data", ctypes.c_ubyte * 4128)
+            ]
+
+        msg = PASSTHRU_MSG()
+        msg.ProtocolID = PROTOCOL_ID_CAN
+        msg.TxFlags = 0x00000001  # ISO15765, Tx padding on
+        msg.DataSize = len(data)
+        msg.ExtraDataIndex = 0
+
+        for i in range(len(data)):
+            msg.Data[i] = data[i]
+
+        num_msgs = ctypes.c_ulong(1)
+
+        result = self.dll.PassThruWriteMsgs(
+            self.channel_id,
+            ctypes.byref(msg),
+            ctypes.byref(num_msgs),
+            1000
+        )
+
+        if result != 0:
+            raise Exception(f"❌ Senden fehlgeschlagen. Fehlercode: {result}")
+        print(f"📤 Gesendet: {data}")
+
+    def receive_message(self, timeout=1000):
+        class PASSTHRU_MSG(ctypes.Structure):
+            _fields_ = [
+                ("ProtocolID", ctypes.c_ulong),
+                ("RxStatus", ctypes.c_ulong),
+                ("TxFlags", ctypes.c_ulong),
+                ("Timestamp", ctypes.c_ulong),
+                ("DataSize", ctypes.c_ulong),
+                ("ExtraDataIndex", ctypes.c_ulong),
+                ("Data", ctypes.c_ubyte * 4128)
+            ]
+
+        msg = PASSTHRU_MSG()
+        num_msgs = ctypes.c_ulong(1)
+
+        result = self.dll.PassThruReadMsgs(
+            self.channel_id,
+            ctypes.byref(msg),
+            ctypes.byref(num_msgs),
+            timeout
+        )
+
+        if result == 0 and num_msgs.value > 0:
+            empfang = [msg.Data[i] for i in range(msg.DataSize)]
+            print(f"📥 Empfang: {empfang}")
+            return empfang
+        else:
+            print("⌛️ Keine Antwort erhalten.")
+            return None
 
     def close(self):
         try:
