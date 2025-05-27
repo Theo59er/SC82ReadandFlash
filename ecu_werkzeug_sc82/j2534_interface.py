@@ -45,7 +45,7 @@ class J2534Interface:
 
         msg = PASSTHRU_MSG()
         msg.ProtocolID = PROTOCOL_ID_CAN
-        msg.TxFlags = 0x00000001  # ISO15765, Tx padding on
+        msg.TxFlags = 0x00000001  # ISO15765
         msg.DataSize = len(data)
         msg.ExtraDataIndex = 0
 
@@ -64,6 +64,8 @@ class J2534Interface:
         if result != 0:
             raise Exception(f"❌ Senden fehlgeschlagen. Fehlercode: {result}")
         print(f"📤 Gesendet: {data}")
+
+
 
     def receive_message(self, timeout=1000):
         class PASSTHRU_MSG(ctypes.Structure):
